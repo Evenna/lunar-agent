@@ -21,6 +21,10 @@ lunar-agent/
 ├── agent.py              # 主程序（命令行问答，单次 / 交互）
 ├── retriever.py          # 离线中文 BM25 检索引擎（零第三方依赖）
 ├── llm_backend.py        # 大模型后端：OllamaBackend（默认）+ MockBackend（降级）
+├── server.py             # HTTP 接口服务（给机器人对接，纯标准库零依赖）
+├── voice_io.py           # 离线语音识别(STT)+语音合成(TTS)层（可插拔、自动降级）
+├── voice_agent.py        # 语音问答模式主循环（听→检索答→语音播报）
+├── ROBOT_INTEGRATION.md  # 【机器人老师看这个】机器人对接说明 + 沟通清单
 ├── knowledge_base/       # 知识库 JSON（共 500 条，10 大主题，程序自动加载目录下所有 .json）
 │   ├── 01_lunar_environment.json      月球环境（种子）
 │   ├── 02_spacesuit_eva.json          宇航服与出舱（种子）
@@ -183,6 +187,35 @@ python3 agent.py --backend ollama --role commander --ask "红烧肉怎么做？"
 ---
 
 > **关于事实准确性：** 回答内容严格来自本地知识库检索，模型不会凭空编造事实。个别数字（如往返延迟）小模型偶有算术口误，已在上方注明。现场若追求措辞更稳，可改用 `--backend mock` 直接输出知识库原文。
+
+---
+
+## 4.2 语音问答与机器人对接
+
+本项目要接入展台机器人，让观众**用说的**提问、机器人**用语音**回答。为此提供两条路线，
+详细规范见 **[`ROBOT_INTEGRATION.md`](ROBOT_INTEGRATION.md)**（给机器人老师的对接文档）。
+
+**路线 A（推荐）：机器人管语音，Agent 只当"大脑"** —— 机器人用自己的语音识别把观众
+的话转成文字，POST 给本程序的 HTTP 服务，拿到文字答案后用自己的语音合成念出来。
+
+```bash
+python3 server.py --backend ollama --port 8080     # 起 HTTP 服务
+# 机器人侧：POST /ask {"question":"月球上冷吗","role":"commander"} → 返回 {"answer": "..."}
+curl -s -X POST http://127.0.0.1:8080/ask -H 'Content-Type: application/json' \
+     -d '{"question":"月球上冷吗"}'
+```
+接口：`POST /ask` 提问、`GET /roles` 列角色、`GET /health` 健康检查。纯标准库，零依赖。
+
+**路线 B（兜底）：Agent 把语音也全包了** —— 本地语音识别(Vosk/whisper.cpp) + 本地语音
+合成(piper/pyttsx3)，整套离线闭环，机器人只需"切进"这个模式。
+
+```bash
+python3 voice_agent.py --role commander      # 进入语音问答模式：听→答→播，说"退出"结束
+```
+> 没装语音模型时自动降级到"键盘输入 + 文字打印"，逻辑照样跑通，方便先验证。
+
+**"切换到问答模式"**：路线 A 下机器人想问就调 `/ask`、想停就不调（服务常驻待命）；
+路线 B 下启动/结束 `voice_agent.py` 子进程，或 `from voice_agent import run_qa_mode`。
 
 ---
 
