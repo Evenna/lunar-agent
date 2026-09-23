@@ -96,6 +96,59 @@ python3 agent.py --backend mock --ask "月球车的轮子和汽车一样吗？" 
 
 ---
 
+## 4.1 现场测试案例（10 条，均已实测通过）
+
+现场部署后，可用下面 10 条命令快速自检问答链路。前 9 条应准确命中知识库并作答，第 10 条应触发「库外拒答」（不乱编）。用 `--backend mock` 可秒出检索结果核对，换成 `--backend ollama` 则由本地模型生成口语化回答。
+
+```bash
+# 1. 基础事实（月球环境）
+python3 agent.py --backend ollama --role commander --ask "月球上一天有多长？"
+
+# 2. 出舱知识（宇航服与出舱）
+python3 agent.py --backend ollama --role eva --ask "出舱前为什么要先预呼吸？"
+
+# 3. 月面交通
+python3 agent.py --backend ollama --role navigator --ask "月球车的轮子为什么不用充气橡胶胎？"
+
+# 4. 导航定位（月面交通）
+python3 agent.py --backend ollama --role navigator --ask "月球上没有GPS，月球车怎么导航？"
+
+# 5. 空气净化（生命保障系统）
+python3 agent.py --backend ollama --role steward --ask "密闭舱里的二氧化碳靠什么清除？"
+
+# 6. 安全常识（生命保障系统）
+python3 agent.py --backend ollama --role steward --ask "月球基地为什么不能用纯氧？"
+
+# 7. 能源难题（月球能源系统）
+python3 agent.py --backend ollama --role engineer --ask "月夜那么长没太阳，基地靠什么供电？"
+
+# 8. 通信延迟（月地通信）
+python3 agent.py --backend ollama --role signal --ask "为什么和月球通话总有一两秒延迟？"
+
+# 9. 心理健康
+python3 agent.py --backend ollama --role proxima --ask "宇航员长期在月球会不会心理出问题？"
+
+# 10. 库外拒答测试（应回答「暂时没找到相关资料」，不编造）
+python3 agent.py --backend ollama --role commander --ask "红烧肉怎么做？"
+```
+
+| # | 提问 | 期望命中主题 | 期望结果 |
+|---|------|------------|---------|
+| 1 | 月球上一天有多长？ | 月球环境·昼夜 | 答约 29.5 天（昼夜各约两周） |
+| 2 | 出舱前为什么要先预呼吸？ | 宇航服·预呼吸 | 讲排氮防减压病 |
+| 3 | 月球车轮子为什么不用橡胶胎？ | 月面交通 | 讲金属网免充气轮 |
+| 4 | 没有 GPS 怎么导航？ | 月面交通·导航 | 讲惯导+视觉+测距 |
+| 5 | 二氧化碳靠什么清除？ | 生命保障 | 讲分子筛/氢氧化锂/萨巴捷 |
+| 6 | 为什么不能用纯氧？ | 生命保障 | 讲纯氧助燃、用氮氧混合 |
+| 7 | 月夜没太阳靠什么供电？ | 月球能源 | 讲储能电池/燃料电池/核能 |
+| 8 | 为什么通话有延迟？ | 月地通信 | 讲光速极限、单程约 1.3 秒 |
+| 9 | 长期驻月心理会出问题吗？ | 心理健康 | 讲封闭孤独压力及应对 |
+| 10 | 红烧肉怎么做？ | —（库外） | 触发拒答，不编造 |
+
+> 交互模式下也可直接把上面这些问题逐句输入验证。
+
+---
+
 ## 5. 机器人角色
 
 | `--role` | 角色 | 展舱 / 用途 | 语气 |
