@@ -60,22 +60,35 @@ ROLES = {
     },
 }
 
+# 命中知识库时：优先照资料答，但也允许模型用自己的知识补充
 SYSTEM_RULES = (
     "你是一台月球基地展览里的科普机器人，面向青少年和儿童观众。"
-    "请严格依据下面【参考资料】里的内容回答，用通俗、准确、简短的中文，"
-    "不要编造资料里没有的数字或事实；若资料里没有相关内容，就如实说'这个我暂时不太确定'。"
-    "回答控制在3到5句话以内，口语化、亲切。"
+    "下面的【参考资料】是本地知识库检索到的相关内容，请优先依据它回答，"
+    "涉及数字和事实要准确、不要瞎编；资料没覆盖到的部分，可以用你自己的知识补充说明。"
+    "回答控制在3到5句话以内，通俗、亲切、口语化。"
+)
+
+# 没命中知识库时：不拒答，让模型用自身能力正常回答
+SYSTEM_RULES_FREE = (
+    "你是一台月球基地展览里的科普机器人，面向青少年和儿童观众。"
+    "本地知识库里没有直接相关的资料，请用你自己的知识正常回答这个问题，"
+    "尽量准确、通俗、亲切，回答控制在3到5句话以内；"
+    "如果确实不了解，就如实说不太清楚，不要编造。"
 )
 
 
 def build_prompt(role_persona, question, hits):
-    refs = []
-    for i, (score, e) in enumerate(hits, 1):
-        refs.append(f"{i}. （{e['topic']}·{e['subtopic']}）{e['answer']}")
-    refs_text = "\n".join(refs) if refs else "（无相关资料）"
+    if hits:
+        refs = [f"{i}. （{e['topic']}·{e['subtopic']}）{e['answer']}"
+                for i, (score, e) in enumerate(hits, 1)]
+        return (
+            f"{role_persona}\n{SYSTEM_RULES}\n\n"
+            f"【参考资料】\n" + "\n".join(refs) + "\n\n"
+            f"【问题】{question}\n\n【回答】"
+        )
+    # 无检索命中：走自由问答提示词
     return (
-        f"{role_persona}\n{SYSTEM_RULES}\n\n"
-        f"【参考资料】\n{refs_text}\n\n"
+        f"{role_persona}\n{SYSTEM_RULES_FREE}\n\n"
         f"【问题】{question}\n\n【回答】"
     )
 
@@ -89,9 +102,7 @@ class LunarAgent:
 
     def answer(self, question):
         hits = self.kb.search(question, top_k=self.top_k)
-        if not hits:
-            return ("这个问题我在月球基地的知识库里暂时没找到相关资料，"
-                    "换个和月球、太空、基地生活有关的问题问我吧！"), hits
+        # 命中就用资料，没命中也照常交给模型用自身知识回答（不再库外拒答）
         prompt = build_prompt(self.role["persona"], question, hits)
         reply = self.backend.generate(prompt)
         return reply, hits
